@@ -1,9 +1,8 @@
 from django.conf.urls import patterns, url
 
-from views import synchro, reset
+from views import synchro
 
 
 urlpatterns = patterns('',
-    url(r'^reset/$', reset, name='reset'),
     url(r'^$', synchro, name='synchro'),
 )

@@ -20,6 +20,9 @@
     {% csrf_token %}
     <br>{% trans 'Last synchro time' %}: {{ last }}.
     <br><br><input type="submit" name="synchro" value="{% trans 'Synchronize' %}">
+    <br><br>
+    <a href="reset/">{% trans "Reset synchronize" %}</a>
 </form>
 </div>
 {% endblock %}
+
