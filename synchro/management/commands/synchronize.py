@@ -70,6 +70,9 @@ def save_with_fks(ct, obj, new_pk):
         if fk_id is not None:
             fk_ct = ContentType.objects.get_for_model(f.rel.to)
             rem, _ = ensure_exist(fk_ct, fk_id)
+            # monkey fix
+            if obj._state.db != rem._state.db:
+	      rem._state.db = REMOTE
             f.save_form_data(obj, rem)
 
     obj.pk = new_pk
