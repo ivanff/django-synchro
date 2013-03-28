@@ -22,6 +22,10 @@ class NaturalManager(Manager):
                 return self.filter(**lookups)[0]
             raise
 
+    def exists_by_natural_key(self, *args, **kwargs):
+        lookups = dict(zip(self.fields, args))
+        return self.filter(**lookups).exists()
+
     def __new__(cls, *fields, **options):
         """
         Creates actual manager, which can be further subclassed and instantiated without arguments.
@@ -45,7 +49,8 @@ class NaturalManager(Manager):
 
             def __init__(self, *args, **kwargs):
                 # Intentionally ignore arguments
-                super(NewNaturalManager, self).__init__()
+                args = args if cls.__name__ in ('RelatedManager', 'ManyRelatedManager') else ()
+                super(NewNaturalManager, self).__init__(*args)
         return super(NaturalManager, cls).__new__(NewNaturalManager)
 
 
