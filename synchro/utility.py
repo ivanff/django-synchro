@@ -4,6 +4,7 @@ from django.core.exceptions import MultipleObjectsReturned, ValidationError
 from django.db.models import Manager, Model
 from django.db.models.base import ModelBase
 
+import copy
 
 class NaturalManager(Manager):
     """
@@ -12,6 +13,14 @@ class NaturalManager(Manager):
     Somehow related to Django bug #13313.
     """
     allow_many = False
+
+    def get_query_set(self):
+        from django.db.models.query import QuerySet
+        fields = self.fields
+        class QuerySet(QuerySet):
+            def natural_keys_list(self):
+                return self.filter().select_related().values_list(*fields)
+        return QuerySet(self.model, using=self._db)
 
     def get_by_natural_key(self, *args):
         lookups = dict(zip(self.fields, args))
@@ -51,6 +60,7 @@ class NaturalManager(Manager):
                 # Intentionally ignore arguments
                 args = args if cls.__name__ in ('RelatedManager', 'ManyRelatedManager') else ()
                 super(NewNaturalManager, self).__init__(*args)
+
         return super(NaturalManager, cls).__new__(NewNaturalManager)
 
 
