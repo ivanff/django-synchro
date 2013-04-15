@@ -1,10 +1,25 @@
 from datetime import datetime
-
 from django.core.exceptions import MultipleObjectsReturned, ValidationError
 from django.db.models import Manager, Model
 from django.db.models.base import ModelBase
+from django.db.models.query import QuerySet
 
 import copy
+
+class newQuerySet(QuerySet):
+    fields_nk = []
+    def natural_keys_list(self):
+        return self.filter().select_related().values_list(*self.fields_nk)
+
+try:
+    from batch_select.models import BatchQuerySet
+    class newBatchQuerySet(BatchQuerySet):
+        fields_nk = []
+        def natural_keys_list(self):
+            return self.filter().select_related().values_list(self.fields_nk)
+except ImportError:
+    newBatchQuerySet = newQuerySet
+    BatchQuerySet = newQuerySet
 
 class NaturalManager(Manager):
     """
@@ -15,12 +30,17 @@ class NaturalManager(Manager):
     allow_many = False
 
     def get_query_set(self):
-        __QuerySet = super(NaturalManager, self).get_query_set().__class__
         fields = self.fields
-        class QuerySet(__QuerySet):
-            def natural_keys_list(self):
-                return self.filter().select_related().values_list(*fields)
-        return QuerySet(self.model, using=self._db)
+        if isinstance(super(NaturalManager, self).get_query_set(), BatchQuerySet):
+            qs = newBatchQuerySet(self.model, using=self._db)
+        else:
+            qs = newQuerySet(self.model, using=self._db)
+
+        qs.fields_nk = fields
+
+        if hasattr(self.model, '_mptt_meta'):
+            return qs.order_by(self.model._mptt_meta.tree_id_attr, self.model._mptt_meta.left_attr)
+        return qs
 
     def get_by_natural_key(self, *args):
         lookups = dict(zip(self.fields, args))
