@@ -15,9 +15,9 @@ class NaturalManager(Manager):
     allow_many = False
 
     def get_query_set(self):
-        from django.db.models.query import QuerySet
+        __QuerySet = super(NaturalManager, self).get_query_set().__class__
         fields = self.fields
-        class QuerySet(QuerySet):
+        class QuerySet(__QuerySet):
             def natural_keys_list(self):
                 return self.filter().select_related().values_list(*fields)
         return QuerySet(self.model, using=self._db)
