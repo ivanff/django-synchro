@@ -9,14 +9,14 @@ import copy
 class newQuerySet(QuerySet):
     fields_nk = []
     def natural_keys_list(self):
-        return self.filter().select_related().values_list(*self.fields_nk)
+        return self.select_related().values_list(*self.fields_nk)
 
 try:
     from batch_select.models import BatchQuerySet
     class newBatchQuerySet(BatchQuerySet):
         fields_nk = []
         def natural_keys_list(self):
-            return self.filter().select_related().values_list(self.fields_nk)
+            return self.select_related().values_list(*self.fields_nk)
 except ImportError:
     newBatchQuerySet = newQuerySet
     BatchQuerySet = newQuerySet
@@ -32,11 +32,11 @@ class NaturalManager(Manager):
     def get_query_set(self):
         fields = self.fields
         if isinstance(super(NaturalManager, self).get_query_set(), BatchQuerySet):
+            newBatchQuerySet.fields_nk = fields
             qs = newBatchQuerySet(self.model, using=self._db)
         else:
+            newQuerySet.fields_nk = fields
             qs = newQuerySet(self.model, using=self._db)
-
-        qs.fields_nk = fields
 
         if hasattr(self.model, '_mptt_meta'):
             return qs.order_by(self.model._mptt_meta.tree_id_attr, self.model._mptt_meta.left_attr)
@@ -54,6 +54,9 @@ class NaturalManager(Manager):
     def exists_by_natural_key(self, *args, **kwargs):
         lookups = dict(zip(self.fields, args))
         return self.filter(**lookups).exists()
+
+    def natural_keys_list(self, *args, **kwargs):
+        return self.get_query_set().filter(*args, **kwargs).natural_keys_list()
 
     def __new__(cls, *fields, **options):
         """
