@@ -21,7 +21,7 @@ except ImportError:
     newBatchQuerySet = newQuerySet
     BatchQuerySet = newQuerySet
 
-class NaturalManager(Manager):
+class NaturalManager(object):
     """
     Manager must be able to instantiate without arguments in order to work with M2M.
     Hence this machinery to store arguments in class.
@@ -62,6 +62,13 @@ class NaturalManager(Manager):
         """
         Creates actual manager, which can be further subclassed and instantiated without arguments.
         """
+        BaseManagerClass = options.get('manager', Manager)
+        if not issubclass(BaseManagerClass, Manager):
+            raise ValidationError(
+                '%s manager class must be a subclass of django.db.models.Manager.'
+                % manager_class.__name__)
+
+    #
         if not fields and hasattr(cls, 'fields') and hasattr(cls, 'allow_many'):
             # Class was already prepared.
             return super(NaturalManager, cls).__new__(cls)
@@ -69,13 +76,8 @@ class NaturalManager(Manager):
         assert fields, 'No fields specified in %s constructor' % cls
         _fields = fields
         _allow_many = options.get('allow_many', False)
-        manager = options.get('manager', Manager)
-        if not issubclass(manager, Manager):
-            raise ValidationError(
-                '%s manager class must be a subclass of django.db.models.Manager.'
-                % manager.__name__)
 
-        class NewNaturalManager(cls, manager):
+        class NewNaturalManager(BaseManagerClass, cls):
             fields = _fields
             allow_many = _allow_many
 
@@ -84,7 +86,10 @@ class NaturalManager(Manager):
                 args = args if cls.__name__ in ('RelatedManager', 'ManyRelatedManager') else ()
                 super(NewNaturalManager, self).__init__(*args)
 
-        return super(NaturalManager, cls).__new__(NewNaturalManager)
+            def get_query_set(self):
+                return super(NewNaturalManager, self).get_query_set()
+
+        return NewNaturalManager()
 
 
 class _NaturalKeyModelBase(ModelBase):
