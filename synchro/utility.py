@@ -21,13 +21,34 @@ except ImportError:
     newBatchQuerySet = newQuerySet
     BatchQuerySet = newQuerySet
 
-class NaturalManager(object):
+class MetaIterBases(type):
+    def __new__(cls, name, bases, dct):
+        if isinstance(bases[0], (tuple, list)):
+            bases = bases[0]
+        return super(MetaIterBases, cls).__new__(cls, name, bases, dct)
+
+class MetaChangeDefaultManager(MetaIterBases):
+    def __new__(cls, name, bases, dct):
+        if bases == (Manager,):
+            bases = (NaturalManager,)
+        return super(MetaChangeDefaultManager, cls).__new__(cls, name, bases, dct)
+
+class NaturalManager(Manager):
     """
     Manager must be able to instantiate without arguments in order to work with M2M.
     Hence this machinery to store arguments in class.
     Somehow related to Django bug #13313.
     """
     allow_many = False
+
+    def get_by_natural_key(self, *args):
+        lookups = dict(zip(self.fields, args))
+        try:
+            return self.get(**lookups)
+        except MultipleObjectsReturned:
+            if self.allow_many:
+                return self.filter(**lookups)[0]
+            raise
 
     def get_query_set(self):
         fields = self.fields
@@ -42,15 +63,6 @@ class NaturalManager(object):
             return qs.order_by(self.model._mptt_meta.tree_id_attr, self.model._mptt_meta.left_attr)
         return qs
 
-    def get_by_natural_key(self, *args):
-        lookups = dict(zip(self.fields, args))
-        try:
-            return self.get(**lookups)
-        except MultipleObjectsReturned:
-            if self.allow_many:
-                return self.filter(**lookups)[0]
-            raise
-
     def exists_by_natural_key(self, *args, **kwargs):
         lookups = dict(zip(self.fields, args))
         return self.filter(**lookups).exists()
@@ -62,32 +74,38 @@ class NaturalManager(object):
         """
         Creates actual manager, which can be further subclassed and instantiated without arguments.
         """
-        BaseManagerClass = options.get('manager', Manager)
-        if not issubclass(BaseManagerClass, Manager):
-            raise ValidationError(
-                '%s manager class must be a subclass of django.db.models.Manager.'
-                % manager_class.__name__)
 
-    #
         if not fields and hasattr(cls, 'fields') and hasattr(cls, 'allow_many'):
             # Class was already prepared.
             return super(NaturalManager, cls).__new__(cls)
+
+        class BaseManagerClass(options.get('manager', Manager)):
+            __metaclass__ = MetaChangeDefaultManager
+
+        if not issubclass(BaseManagerClass, Manager):
+            raise ValidationError(
+                '%s manager class must be a subclass of django.db.models.Manager.'
+                % BaseManagerClass.__name__)
+
+        if cls.__name__ in ('RelatedManager', 'ManyRelatedManager'):
+            BaseClasses = (cls, BaseManagerClass)
+        else:
+            BaseClasses = (BaseManagerClass)
 
         assert fields, 'No fields specified in %s constructor' % cls
         _fields = fields
         _allow_many = options.get('allow_many', False)
 
-        class NewNaturalManager(BaseManagerClass, cls):
+        class NewNaturalManager(BaseClasses):
+            __metaclass__ = MetaIterBases
+
             fields = _fields
             allow_many = _allow_many
 
             def __init__(self, *args, **kwargs):
                 # Intentionally ignore arguments
-                args = args if cls.__name__ in ('RelatedManager', 'ManyRelatedManager') else ()
+                args = self.fields if cls.__name__ in ('RelatedManager', 'ManyRelatedManager') else ()
                 super(NewNaturalManager, self).__init__(*args)
-
-            def get_query_set(self):
-                return super(NewNaturalManager, self).get_query_set()
 
         return NewNaturalManager()
 
