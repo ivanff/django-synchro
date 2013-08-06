@@ -90,7 +90,7 @@ class NaturalManager(Manager):
         if cls.__name__ in ('RelatedManager', 'ManyRelatedManager'):
             BaseClasses = (cls, BaseManagerClass)
         else:
-            BaseClasses = (BaseManagerClass)
+            BaseClasses = (BaseManagerClass, cls)
 
         assert fields, 'No fields specified in %s constructor' % cls
         _fields = fields
@@ -103,6 +103,7 @@ class NaturalManager(Manager):
             allow_many = _allow_many
 
             def __init__(self, *args, **kwargs):
+
                 # Intentionally ignore arguments
                 args = self.fields if cls.__name__ in ('RelatedManager', 'ManyRelatedManager') else ()
                 super(NewNaturalManager, self).__init__(*args)
